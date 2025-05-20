@@ -7,9 +7,9 @@ Copyright 2022
 
 """
 from os import stat
-from crc16_python import crc16_str_swap
+from .crc16_python import crc16_str_swap
 import logging
-from utils import toHex
+from .utils import toHex
 
 class FirmwareMsg:
     seq=0
@@ -104,7 +104,7 @@ class RequestDataStreamMsg:
     # Frequency
     FREQ = {0: '00', 2: '01', 4: '02', 5: '03', 10: '04', 20: '05', 50: '06', 100: '07'}
 
-    seq = 0 
+    seq = 0
     data_type = 1 # uint8_t
     data_frequency = 0 # 0 means OFF (0, 2, 4, 5, 10, 20, 50, 100)
 
@@ -152,20 +152,20 @@ class SIYIMESSAGE:
         self._logger = logging.getLogger(self.__class__.__name__)
 
         self.HEADER='5566'# STX, 2 bytes
-        self._ctr ='01'        
+        self._ctr ='01'
 
         self._seq= 0
 
         self._cmd_id='00' # 1 byte
-        
+
         self._data_len = 0
-        
+
         # String of data byes (in hex)
         self._data=''
 
         self._crc16='0000' # low byte (2 characters) on the left!
 
-    
+
     def incrementSEQ(self, val):
         """
         Increments sequence number by one, converts them to hex, and revereses the byte order.
@@ -178,7 +178,7 @@ class SIYIMESSAGE:
         --
         seq_str: [string] String value of the sequence number in reveresed byte order
         """
-        
+
         if not isinstance(val, int):
             self._logger.warning("Sequence value is not integer. Returning zero")
             return "0000"
@@ -203,7 +203,7 @@ class SIYIMESSAGE:
             seq_str = '00'+seq_hex
         else:
             seq='0000'
-        
+
         low_b = seq_hex[-2:]
         high_b = seq_hex[0:2]
         seq_str = low_b+high_b
@@ -241,7 +241,7 @@ class SIYIMESSAGE:
             len_hex = '00'+len_hex
         else:
             len_hex='0000'
-        
+
         low_b = len_hex[-2:]
         high_b = len_hex[0:2]
         len_str = low_b+high_b
@@ -264,7 +264,7 @@ class SIYIMESSAGE:
         - seq [int] message sequence
         """
         data = None
-        
+
         if not isinstance(msg, str):
             self._logger.error("Input message is not a string")
             return data
@@ -276,7 +276,7 @@ class SIYIMESSAGE:
             self._logger.error("No data to decode")
             return data
 
-        
+
         # Now we got minimum amount of data. Check if we have enough
         # Data length, bytes are reversed, according to SIYI SDK
         low_b = msg[6:8] # low byte
@@ -292,22 +292,22 @@ class SIYIMESSAGE:
         if expected_crc!=msg_crc:
             self._logger.error("CRC16 is not valid. Got %s. Expected %s. Message might be corrupted!", msg_crc, expected_crc)
             return data
-        
+
         # Sequence
         low_b = msg[10:12] # low byte
         high_b = msg[12:14] # high byte
         seq_hex = high_b+low_b
         seq = int('0x'+seq_hex, base=16)
-        
+
         # CMD ID
         cmd_id = msg[14:16]
-        
+
         # DATA
         if data_len>0:
             data = msg[16:16+char_len]
         else:
             data=''
-        
+
         self._data = data
         self._data_len = data_len
         self._cmd_id = cmd_id
@@ -338,7 +338,7 @@ class SIYIMESSAGE:
     ########################################################
     #               Message definitions                    #
     ########################################################
-    
+
     def firmwareVerMsg(self):
         """
         Returns message string of the Acqsuire Firmware Version msg
@@ -346,7 +346,7 @@ class SIYIMESSAGE:
         data=""
         cmd_id = COMMAND.ACQUIRE_FW_VER
         return self.encodeMsg(data, cmd_id)
-    
+
     def hwIdMsg(self):
         """
         Returns message string for the Acquire Hardware ID
@@ -418,7 +418,7 @@ class SIYIMESSAGE:
         data="04"
         cmd_id = COMMAND.PHOTO_VIDEO_HDR
         return self.encodeMsg(data, cmd_id)
-    
+
     def fpvModeMsg(self):
         """
         FPV mode msg
@@ -510,7 +510,7 @@ class SIYIMESSAGE:
         data=data1+data2
         cmd_id = COMMAND.GIMBAL_SPEED
         return self.encodeMsg(data, cmd_id)
-    
+
     def setGimbalAttitude(self, target_yaw_deg, target_pitch_deg):
         """
         Set gimbal angles Msg.
@@ -530,12 +530,12 @@ class SIYIMESSAGE:
         data = yaw_hex+pitch_hex
         cmd_id = COMMAND.SET_GIMBAL_ATTITUDE
         return self.encodeMsg(data, cmd_id)
-    
+
     def dataStreamMsg(self, dtype: int, freq: int):
         """
         Request data stream at specific rate.
         Supported stream are
-        Attitude and Laser. Laser only for ZT 30, but frequency is not supported yet. 
+        Attitude and Laser. Laser only for ZT 30, but frequency is not supported yet.
         Frequency is supported for attitude,
 
         Params
@@ -550,7 +550,7 @@ class SIYIMESSAGE:
         else:
             self._logger.error(f"Data stream type {type} not supported. Must be 1 (atitude) or 2 (laser)")
             return ''
-        
+
         f = int(freq)
         try:
             f_hex = RequestDataStreamMsg.FREQ[f]
@@ -560,7 +560,7 @@ class SIYIMESSAGE:
         data = data_type_hex+f_hex
         cmd_id = COMMAND.SET_DATA_STREAM
         return self.encodeMsg(data, cmd_id)
-    
+
     def absoluteZoomMsg(self, zoom_level: float):
         """
         Params
@@ -579,7 +579,7 @@ class SIYIMESSAGE:
         cmd_id = COMMAND.ABSOLUTE_ZOOM
 
         return self.encodeMsg(data, cmd_id)
-    
+
     def requestCurrentZoomMsg(self):
         data=""
         cmd_id = COMMAND.CURRENT_ZOOM_VALUE

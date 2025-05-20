@@ -7,12 +7,12 @@ Copyright 2022
 
 """
 import socket
-from siyi_message import *
+from .siyi_message import *
 from time import sleep, time
 import logging
-from utils import  toInt
+from .utils import  toInt
 import threading
-import cameras
+from .cameras import *
 
 
 class SIYISDK:
@@ -34,9 +34,9 @@ class SIYISDK:
 
         # Message sent to the camera
         self._out_msg = SIYIMESSAGE(debug=self._debug)
-        
+
         # Message received from the camera
-        self._in_msg = SIYIMESSAGE(debug=self._debug)        
+        self._in_msg = SIYIMESSAGE(debug=self._debug)
 
         self._server_ip = server_ip
         self._port = port
@@ -50,8 +50,8 @@ class SIYISDK:
         self.resetVars()
 
         # Stop threads flag
-        self._stop = False  
-        
+        self._stop = False
+
         self._recv_thread = threading.Thread(target=self.recvLoop)
 
         # Connection thread
@@ -95,7 +95,7 @@ class SIYISDK:
     def connect(self, maxWaitTime=3.0, maxRetries=3):
         """
         Attempts to connect to the camera with retries if needed.
-        
+
         Params
         --
         - maxWaitTime [float]: Maximum time to wait before giving up on connection (in seconds)
@@ -109,7 +109,7 @@ class SIYISDK:
                 self._conn_thread = threading.Thread(target=self.connectionLoop, args=(self._conn_loop_rate,))
                 self._g_info_thread = threading.Thread(target=self.gimbalInfoLoop, args=(self._gimbal_info_loop_rate,))
                 self._g_att_thread = threading.Thread(target=self.gimbalAttLoop, args=(self._gimbal_att_loop_rate,))
-                
+
                 self._logger.info(f"Attempting to connect to camera, attempt {retries + 1}")
                 self._recv_thread.start()
                 self._conn_thread.start()
@@ -295,7 +295,7 @@ class SIYISDK:
             self.bufferCallback()
         self._logger.debug("Exiting data receiving thread")
 
-    
+
     def bufferCallback(self):
         """
         Receives messages and parses its content
@@ -317,7 +317,7 @@ class SIYISDK:
         # Go through the buffer
         while(len(buff_str)>=MINIMUM_DATA_LENGTH):
             if buff_str[0:4]!=HEADER:
-                # Remove the 1st element and continue 
+                # Remove the 1st element and continue
                 tmp=buff_str[1:]
                 buff_str=tmp
                 continue
@@ -335,7 +335,7 @@ class SIYISDK:
                 # No useful data
                 buff_str=''
                 break
-            
+
             packet = buff_str[0:MINIMUM_DATA_LENGTH+char_len]
             buff_str = buff_str[MINIMUM_DATA_LENGTH+char_len:]
 
@@ -343,7 +343,7 @@ class SIYISDK:
             val = self._in_msg.decodeMsg(packet)
             if val is None:
                 continue
-            
+
             data, data_len, cmd_id, seq = val[0], val[1], val[2], val[3]
 
             if cmd_id==COMMAND.ACQUIRE_FW_VER:
@@ -374,12 +374,12 @@ class SIYISDK:
                 self.parseCurrentZoomLevelMsg(data, seq)
             else:
                 self._logger.warning("CMD ID is not recognized")
-        
+
         return
-    
+
     ##################################################
     #               Request functions                #
-    ##################################################    
+    ##################################################
     def requestFirmwareVersion(self):
         """
         Sends request for firmware version
@@ -493,13 +493,13 @@ class SIYISDK:
         [bool] True: success. False: fail
         """
         msg = self._out_msg.stopZoomMsg()
-        
+
         return self.sendMsg(msg)
-    
+
     def requestAbsoluteZoom(self, level: float):
         msg = self._out_msg.absoluteZoomMsg(level)
         return self.sendMsg(msg)
-    
+
     def requestCurrentZoomLevel(self):
         msg = self._out_msg.requestCurrentZoomMsg()
         return self.sendMsg(msg)
@@ -513,7 +513,7 @@ class SIYISDK:
         [bool] True: success. False: fail
         """
         msg = self._out_msg.longFocusMsg()
-        
+
         return self.sendMsg(msg)
 
     def requestCloseFocus(self):
@@ -560,7 +560,7 @@ class SIYISDK:
         --
         yaw_speed [int] -100~0~100. away from zero -> fast, close to zero -> slow. Sign is for direction
         pitch_speed [int] Same as yaw_speed
-        
+
         Returns
         --
         [bool] True: success. False: fail
@@ -572,7 +572,7 @@ class SIYISDK:
     def requestPhoto(self):
         """
         Sends request for taking photo
-        
+
         Returns
         --
         [bool] True: success. False: fail
@@ -584,7 +584,7 @@ class SIYISDK:
     def requestRecording(self):
         """
         Sends request for toglling video recording
-        
+
         Returns
         --
         [bool] True: success. False: fail
@@ -596,7 +596,7 @@ class SIYISDK:
     def requestFPVMode(self):
         """
         Sends request for setting FPV mode
-        
+
         Returns
         --
         [bool] True: success. False: fail
@@ -608,7 +608,7 @@ class SIYISDK:
     def requestLockMode(self):
         """
         Sends request for setting Lock mode
-        
+
         Returns
         --
         [bool] True: success. False: fail
@@ -620,7 +620,7 @@ class SIYISDK:
     def requestFollowMode(self):
         """
         Sends request for setting Follow mode
-        
+
         Returns
         --
         [bool] True: success. False: fail
@@ -628,7 +628,7 @@ class SIYISDK:
         msg = self._out_msg.followModeMsg()
 
         return self.sendMsg(msg)
-    
+
     def requestSetAngles(self, yaw_deg:float, pitch_deg:float):
         """
         Sends request to set gimbal angles
@@ -640,34 +640,34 @@ class SIYISDK:
         if self._hw_msg.cam_type_str == '':
             self._logger.error(f"Gimbal type is not yet retrieved. Check connection.")
             return False
-        
+
         if self._hw_msg.cam_type_str == 'A8 mini':
-            if yaw_deg > cameras.A8MINI.MAX_YAW_DEG:
-                self._logger.warning(f"yaw_deg {yaw_deg} exceeds max {cameras.A8MINI.MAX_YAW_DEG}. Setting it to max")
-                yaw_deg = cameras.A8MINI.MAX_YAW_DEG
-            if yaw_deg < cameras.A8MINI.MIN_YAW_DEG:
-                self._logger.warning(f"yaw_deg {yaw_deg} exceeds min {cameras.A8MINI.MIN_YAW_DEG}. Setting it to min")
-                yaw_deg = cameras.A8MINI.MIN_YAW_DEG
-            if pitch_deg > cameras.A8MINI.MAX_PITCH_DEG:
-                self._logger.warning(f"pitch_deg {pitch_deg} exceeds max {cameras.A8MINI.MAX_PITCH_DEG}. Setting it to max")
-                pitch_deg = cameras.A8MINI.MAX_PITCH_DEG
-            if pitch_deg < cameras.A8MINI.MIN_PITCH_DEG:
-                self._logger.warning(f"pitch_deg {pitch_deg} exceeds min {cameras.A8MINI.MIN_PITCH_DEG}. Setting it to min")
-                pitch_deg = cameras.A8MINI.MIN_PITCH_DEG
+            if yaw_deg > A8MINI.MAX_YAW_DEG:
+                self._logger.warning(f"yaw_deg {yaw_deg} exceeds max {A8MINI.MAX_YAW_DEG}. Setting it to max")
+                yaw_deg = A8MINI.MAX_YAW_DEG
+            if yaw_deg < A8MINI.MIN_YAW_DEG:
+                self._logger.warning(f"yaw_deg {yaw_deg} exceeds min {A8MINI.MIN_YAW_DEG}. Setting it to min")
+                yaw_deg = A8MINI.MIN_YAW_DEG
+            if pitch_deg > A8MINI.MAX_PITCH_DEG:
+                self._logger.warning(f"pitch_deg {pitch_deg} exceeds max {A8MINI.MAX_PITCH_DEG}. Setting it to max")
+                pitch_deg = A8MINI.MAX_PITCH_DEG
+            if pitch_deg < A8MINI.MIN_PITCH_DEG:
+                self._logger.warning(f"pitch_deg {pitch_deg} exceeds min {A8MINI.MIN_PITCH_DEG}. Setting it to min")
+                pitch_deg = A8MINI.MIN_PITCH_DEG
 
         elif self._hw_msg.cam_type_str == 'ZR10':
-            if yaw_deg > cameras.ZR10.MAX_YAW_DEG:
-                self._logger.warning(f"yaw_deg {yaw_deg} exceeds max {cameras.ZR10.MAX_YAW_DEG}. Setting it to max")
-                yaw_deg = cameras.ZR10.MAX_YAW_DEG
-            if yaw_deg < cameras.ZR10.MIN_YAW_DEG:
-                self._logger.warning(f"yaw_deg {yaw_deg} exceeds min {cameras.ZR10.MIN_YAW_DEG}. Setting it to min")
-                yaw_deg = cameras.ZR10.MIN_YAW_DEG
-            if pitch_deg > cameras.ZR10.MAX_PITCH_DEG:
-                self._logger.warning(f"pitch_deg {pitch_deg} exceeds max {cameras.ZR10.MAX_PITCH_DEG}. Setting it to max")
-                pitch_deg = cameras.ZR10.MAX_PITCH_DEG
-            if pitch_deg < cameras.ZR10.MIN_PITCH_DEG:
-                self._logger.warning(f"pitch_deg {pitch_deg} exceeds min {cameras.ZR10.MIN_PITCH_DEG}. Setting it to min")
-                pitch_deg = cameras.A8MINI.MIN_PITCH_DEG
+            if yaw_deg > ZR10.MAX_YAW_DEG:
+                self._logger.warning(f"yaw_deg {yaw_deg} exceeds max {ZR10.MAX_YAW_DEG}. Setting it to max")
+                yaw_deg = ZR10.MAX_YAW_DEG
+            if yaw_deg < ZR10.MIN_YAW_DEG:
+                self._logger.warning(f"yaw_deg {yaw_deg} exceeds min {ZR10.MIN_YAW_DEG}. Setting it to min")
+                yaw_deg = ZR10.MIN_YAW_DEG
+            if pitch_deg > ZR10.MAX_PITCH_DEG:
+                self._logger.warning(f"pitch_deg {pitch_deg} exceeds max {ZR10.MAX_PITCH_DEG}. Setting it to max")
+                pitch_deg = ZR10.MAX_PITCH_DEG
+            if pitch_deg < ZR10.MIN_PITCH_DEG:
+                self._logger.warning(f"pitch_deg {pitch_deg} exceeds min {ZR10.MIN_PITCH_DEG}. Setting it to min")
+                pitch_deg = A8MINI.MIN_PITCH_DEG
         else:
             self._logger.warning(f"Camera not supported. Setting angles to zero")
             return False
@@ -675,7 +675,7 @@ class SIYISDK:
         msg = self._out_msg.setGimbalAttitude(int(yaw_deg*10), int(pitch_deg*10))
 
         return self.sendMsg(msg)
-    
+
     def requestDataStreamAttitude(self, freq: int):
         """
         Send request to send attitude stream at specific frequency
@@ -686,7 +686,7 @@ class SIYISDK:
         """
         msg = self._out_msg.dataStreamMsg(1, freq)
         return self.sendMsg(msg)
-    
+
     def requestDataStreamLaser(self, freq: int):
         """
         Send request to send laser stream at specific frequency
@@ -705,7 +705,7 @@ class SIYISDK:
         try:
             self._fw_msg.gimbal_firmware_ver= msg[8:16]
             self._fw_msg.seq=seq
-            
+
             self._logger.debug("Firmware version: %s", self._fw_msg.gimbal_firmware_ver)
 
             return True
@@ -719,7 +719,7 @@ class SIYISDK:
             self._hw_msg.id = msg
             self._logger.debug("Hardware ID: %s", self._hw_msg.id)
             # first two characters define the camera ID
-            
+
             # The numbers are reversed
             cam_id = msg[1]+msg[0]
             try:
@@ -734,7 +734,7 @@ class SIYISDK:
             return False
 
     def parseAttitudeMsg(self, msg:str, seq:int):
-        
+
         try:
             self._att_msg.seq=seq
             self._att_msg.yaw = toInt(msg[2:4]+msg[0:2]) /10.
@@ -744,9 +744,9 @@ class SIYISDK:
             self._att_msg.pitch_speed = toInt(msg[18:20]+msg[16:18]) /10.
             self._att_msg.roll_speed = toInt(msg[22:24]+msg[20:22]) /10.
 
-            self._logger.debug("(yaw, pitch, roll= (%s, %s, %s)", 
+            self._logger.debug("(yaw, pitch, roll= (%s, %s, %s)",
                                     self._att_msg.yaw, self._att_msg.pitch, self._att_msg.roll)
-            self._logger.debug("(yaw_speed, pitch_speed, roll_speed= (%s, %s, %s)", 
+            self._logger.debug("(yaw_speed, pitch_speed, roll_speed= (%s, %s, %s)",
                                     self._att_msg.yaw_speed, self._att_msg.pitch_speed, self._att_msg.roll_speed)
             return True
         except Exception as e:
@@ -758,7 +758,7 @@ class SIYISDK:
             self._record_msg.seq=seq
             self._mountDir_msg.seq=seq
             self._motionMode_msg.seq=seq
-            
+
             self._record_msg.state = int('0x'+msg[6:8], base=16)
             self._motionMode_msg.mode = int('0x'+msg[8:10], base=16)
             self._mountDir_msg.dir = int('0x'+msg[10:12], base=16)
@@ -772,12 +772,12 @@ class SIYISDK:
             return False
 
     def parseAutoFocusMsg(self, msg:str, seq:int):
-        
+
         try:
             self._autoFocus_msg.seq=seq
             self._autoFocus_msg.success = bool(int('0x'+msg, base=16))
 
-            
+
             self._logger.debug("Auto focus success: %s", self._autoFocus_msg.success)
 
             return True
@@ -786,12 +786,12 @@ class SIYISDK:
             return False
 
     def parseZoomMsg(self, msg:str, seq:int):
-        
+
         try:
             self._manualZoom_msg.seq=seq
             self._manualZoom_msg.level = int('0x'+msg[2:4]+msg[0:2], base=16) /10.
 
-            
+
             self._logger.debug("Zoom level %s", self._manualZoom_msg.level)
 
             return True
@@ -800,12 +800,12 @@ class SIYISDK:
             return False
 
     def parseManualFocusMsg(self, msg:str, seq:int):
-        
+
         try:
             self._manualFocus_msg.seq=seq
             self._manualFocus_msg.success = bool(int('0x'+msg, base=16))
 
-            
+
             self._logger.debug("Manual  focus success: %s", self._manualFocus_msg.success)
 
             return True
@@ -814,12 +814,12 @@ class SIYISDK:
             return False
 
     def parseGimbalSpeedMsg(self, msg:str, seq:int):
-        
+
         try:
             self._gimbalSpeed_msg.seq=seq
             self._gimbalSpeed_msg.success = bool(int('0x'+msg, base=16))
 
-            
+
             self._logger.debug("Gimbal speed success: %s", self._gimbalSpeed_msg.success)
 
             return True
@@ -828,12 +828,12 @@ class SIYISDK:
             return False
 
     def parseGimbalCenterMsg(self, msg:str, seq:int):
-        
+
         try:
             self._center_msg.seq=seq
             self._center_msg.success = bool(int('0x'+msg, base=16))
 
-            
+
             self._logger.debug("Gimbal center success: %s", self._center_msg.success)
 
             return True
@@ -842,21 +842,21 @@ class SIYISDK:
             return False
 
     def parseFunctionFeedbackMsg(self, msg:str, seq:int):
-        
+
         try:
             self._funcFeedback_msg.seq=seq
             self._funcFeedback_msg.info_type = int('0x'+msg, base=16)
 
-            
+
             self._logger.debug("Function Feedback Code: %s", self._funcFeedback_msg.info_type)
 
             return True
         except Exception as e:
             self._logger.error("Error %s", e)
             return False
-        
+
     def parseSetGimbalAnglesMsg(self, msg:str, seq:int):
-        
+
         try:
             self._set_gimbal_angles_msg.seq=seq
 
@@ -866,9 +866,9 @@ class SIYISDK:
         except Exception as e:
             self._logger.error("Error %s", e)
             return False
-        
+
     def parseRequestStreamMsg(self, msg:str, seq:int):
-        
+
         try:
             self._request_data_stream_msg.seq=seq
 
@@ -878,7 +878,7 @@ class SIYISDK:
         except Exception as e:
             self._logger.error("Error %s", e)
             return False
-        
+
     def parseCurrentZoomLevelMsg(self, msg: str, seq: int):
         try:
             self._current_zoom_level_msg.seq = seq
@@ -905,7 +905,7 @@ class SIYISDK:
 
     def getHardwareID(self):
         return(self._hw_msg.id)
-    
+
     def getCameraTypeString(self):
         return(self._hw_msg.cam_type_str)
 
@@ -923,13 +923,13 @@ class SIYISDK:
 
     def getZoomLevel(self):
         return(self._manualZoom_msg.level)
-    
+
     def getCurrentZoomLevel(self):
         return(self._current_zoom_level_msg.level)
-    
+
     def getCenteringFeedback(self):
         return(self._center_msg.success)
-    
+
     def getDataStreamFeedback(self):
         return(self._request_data_stream_msg.data_type)
 
@@ -992,7 +992,7 @@ def test():
         exit(1)
 
     print("Firmware version: ", cam.getFirmwareVersion())
-    
+
     cam.requestGimbalSpeed(10,0)
     sleep(3)
     cam.requestGimbalSpeed(0,0)
