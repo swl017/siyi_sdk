@@ -9,6 +9,7 @@ Copyright 2022
 from os import stat
 from .crc16_python import crc16_str_swap
 import logging
+import struct
 from .utils import toHex
 
 class FirmwareMsg:
@@ -90,6 +91,12 @@ class AttitdueMsg:
     pitch_speed=0.0
     roll_speed= 0.0
 
+class GimbalEncoderAngleMsg:
+    seq = 0
+    yaw = 0.0    # degrees
+    pitch = 0.0  # degrees
+    roll = 0.0   # degrees
+
 class SetGimbalAnglesMsg:
     seq = 0
     yaw = 0.0
@@ -100,6 +107,7 @@ class RequestDataStreamMsg:
     # data_type uint8_t
     ATTITUDE_DATA = '01'
     LASER_DATA = '02'
+    MAGNETIC_ENCODER_ANGLE_DATA = '03'
 
     # Frequency
     FREQ = {0: '00', 2: '01', 4: '02', 5: '03', 10: '04', 20: '05', 50: '06', 100: '07'}
@@ -131,7 +139,9 @@ class COMMAND:
     PHOTO_VIDEO_HDR = '0c'
     ACQUIRE_GIMBAL_ATT = '0d'
     SET_GIMBAL_ATTITUDE = '0e'
+    SEND_AIRCRAFT_ATTITUDE = '22'
     SET_DATA_STREAM = '25'
+    REQUEST_GIMBAL_ENCODER = '26'
     ABSOLUTE_ZOOM = '0f'
     CURRENT_ZOOM_VALUE = '18'
 
@@ -547,8 +557,10 @@ class SIYIMESSAGE:
             data_type_hex = RequestDataStreamMsg.ATTITUDE_DATA
         elif dtype == 2:
             data_type_hex = RequestDataStreamMsg.LASER_DATA
+        elif dtype == 3:
+            data_type_hex = RequestDataStreamMsg.MAGNETIC_ENCODER_ANGLE_DATA
         else:
-            self._logger.error(f"Data stream type {type} not supported. Must be 1 (atitude) or 2 (laser)")
+            self._logger.error(f"Data stream type {dtype} not supported. Must be 1 (attitude), 2 (laser), or 3 (encoder)")
             return ''
 
         f = int(freq)
@@ -559,6 +571,35 @@ class SIYIMESSAGE:
             return ''
         data = data_type_hex+f_hex
         cmd_id = COMMAND.SET_DATA_STREAM
+        return self.encodeMsg(data, cmd_id)
+
+    def sendAircraftAttitudeMsg(self, time_ms, roll, pitch, yaw, rollspeed, pitchspeed, yawspeed):
+        """
+        Send aircraft attitude data to gimbal (0x22).
+
+        Params
+        --
+        - time_ms [uint32_t] Timestamp in ms since boot
+        - roll [float] Roll angle in rad (-pi..+pi)
+        - pitch [float] Pitch angle in rad (-pi/2..+pi/2)
+        - yaw [float] Yaw angle in rad (-pi..+pi)
+        - rollspeed [float] Roll angular speed in rad/s
+        - pitchspeed [float] Pitch angular speed in rad/s
+        - yawspeed [float] Yaw angular speed in rad/s
+
+        All values in NED frame, rotation order: yaw → pitch → roll.
+        """
+        payload = struct.pack('<I6f', int(time_ms), roll, pitch, yaw, rollspeed, pitchspeed, yawspeed)
+        data = payload.hex()
+        cmd_id = COMMAND.SEND_AIRCRAFT_ATTITUDE
+        return self.encodeMsg(data, cmd_id)
+
+    def requestGimbalEncoderAngleMsg(self):
+        """
+        Request magnetic encoder angle data (0x26). Empty payload.
+        """
+        data = ""
+        cmd_id = COMMAND.REQUEST_GIMBAL_ENCODER
         return self.encodeMsg(data, cmd_id)
 
     def absoluteZoomMsg(self, zoom_level: float):

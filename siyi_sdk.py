@@ -88,6 +88,7 @@ class SIYISDK:
         self._request_data_stream_msg = RequestDataStreamMsg()
         self._request_absolute_zoom_msg = RequestAbsoluteZoomMsg()
         self._current_zoom_level_msg = CurrentZoomValueMsg()
+        self._gimbal_encoder_msg = GimbalEncoderAngleMsg()
         self._last_att_seq = -1
 
         return True
@@ -369,7 +370,9 @@ class SIYISDK:
             elif cmd_id==COMMAND.SET_GIMBAL_ATTITUDE:
                 self.parseSetGimbalAnglesMsg(data, seq)
             elif cmd_id==COMMAND.SET_DATA_STREAM:
-                self.parseRequestStreamMsg()
+                self.parseRequestStreamMsg(data, seq)
+            elif cmd_id==COMMAND.REQUEST_GIMBAL_ENCODER:
+                self.parseGimbalEncoderMsg(data, seq)
             elif cmd_id==COMMAND.CURRENT_ZOOM_VALUE:
                 self.parseCurrentZoomLevelMsg(data, seq)
             else:
@@ -698,6 +701,37 @@ class SIYISDK:
         msg = self._out_msg.dataStreamMsg(2, freq)
         return self.sendMsg(msg)
 
+    def requestSendAircraftAttitude(self, time_ms, roll, pitch, yaw, rollspeed, pitchspeed, yawspeed):
+        """
+        Send aircraft EKF attitude to gimbal (0x22) for improved stabilization.
+
+        Params
+        ---
+        time_ms: [uint32_t] Timestamp in ms since boot
+        roll, pitch, yaw: [float] Attitude angles in rad (NED frame)
+        rollspeed, pitchspeed, yawspeed: [float] Angular velocities in rad/s (NED frame)
+        """
+        msg = self._out_msg.sendAircraftAttitudeMsg(time_ms, roll, pitch, yaw, rollspeed, pitchspeed, yawspeed)
+        return self.sendMsg(msg)
+
+    def requestGimbalEncoderAngle(self):
+        """
+        One-shot request for magnetic encoder angles (0x26).
+        """
+        msg = self._out_msg.requestGimbalEncoderAngleMsg()
+        return self.sendMsg(msg)
+
+    def requestDataStreamEncoderAngle(self, freq: int):
+        """
+        Request continuous magnetic encoder angle stream via 0x25 with data_type=3.
+
+        Params
+        ---
+        freq: [uint_8] frequency in Hz (0, 2, 4, 5, 10, 20, 50, 100)
+        """
+        msg = self._out_msg.dataStreamMsg(3, freq)
+        return self.sendMsg(msg)
+
     ####################################################
     #                Parsing functions                 #
     ####################################################
@@ -751,6 +785,20 @@ class SIYISDK:
             return True
         except Exception as e:
             self._logger.error("Error %s", e)
+            return False
+
+    def parseGimbalEncoderMsg(self, msg:str, seq:int):
+        try:
+            self._gimbal_encoder_msg.seq = seq
+            self._gimbal_encoder_msg.yaw = toInt(msg[2:4]+msg[0:2]) / 10.0
+            self._gimbal_encoder_msg.pitch = toInt(msg[6:8]+msg[4:6]) / 10.0
+            self._gimbal_encoder_msg.roll = toInt(msg[10:12]+msg[8:10]) / 10.0
+
+            self._logger.debug("Encoder (yaw, pitch, roll) = (%s, %s, %s)",
+                                    self._gimbal_encoder_msg.yaw, self._gimbal_encoder_msg.pitch, self._gimbal_encoder_msg.roll)
+            return True
+        except Exception as e:
+            self._logger.error("Error parsing encoder msg: %s", e)
             return False
 
     def parseGimbalInfoMsg(self, msg:str, seq:int):
@@ -899,6 +947,9 @@ class SIYISDK:
 
     def getAttitudeSpeed(self):
         return(self._att_msg.yaw_speed, self._att_msg.pitch_speed, self._att_msg.roll_speed)
+
+    def getGimbalEncoderAngles(self):
+        return(self._gimbal_encoder_msg.yaw, self._gimbal_encoder_msg.pitch, self._gimbal_encoder_msg.roll)
 
     def getFirmwareVersion(self):
         return(self._fw_msg.gimbal_firmware_ver)
